@@ -7,7 +7,7 @@ export default function CardiologistFinder({ analysisResult }) {
   const [error, setError] = useState(null);
 
   const riskLevel = analysisResult?.overallCadProb > 0.5 ? 'High' : 'Moderate';
-
+  const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "https://cardiac-hackathon-platform.onrender.com";
   const handleAiSearch = async (e) => {
     e.preventDefault();
     if (pincode.length !== 6) return;
@@ -16,7 +16,7 @@ export default function CardiologistFinder({ analysisResult }) {
     setError(null);
 
     try {
-      const response = await fetch('http://localhost:8000/api/find-specialists', {
+        const response = await fetch(`${API_BASE}/api/find-specialists`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ pincode, risk_level: riskLevel }),
