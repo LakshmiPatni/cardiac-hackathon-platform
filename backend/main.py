@@ -5,6 +5,7 @@ Cardiovascular Risk Prediction API with Stacking Meta-Learner Harmonization.
 
 Run train_models.py first (it creates the clinical_models.joblib bundle this file loads).
 """
+import asyncio
 import io
 import json
 import math
@@ -41,7 +42,9 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # ── Gemini configuration (key stored in .env — users never see it) ──────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL   = os.environ.get("GEMINI_MODEL", "gemini-2.0-flash").strip()
+# Preferred model: gemini-2.5-flash by default. Retired families (1.0 / 1.5) are ignored even if an old value is
+# still set on the host (e.g. a leftover GEMINI_MODEL=gemini-1.5-flash on Render).
+GEMINI_MODEL   = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash").strip()
 
 if genai is None:
     print("⚠️  google-generativeai not installed — care navigator disabled")
@@ -50,7 +53,7 @@ elif not GEMINI_API_KEY or GEMINI_API_KEY == "paste_your_key_here":
     print("    → Open .env next to main.py and replace 'paste_your_key_here' with your real key")
 else:
     genai.configure(api_key=GEMINI_API_KEY)
-    print(f"✅ Gemini ready (model: {GEMINI_MODEL})")
+    print(f"✅ Gemini ready (preferred model: {GEMINI_MODEL})")
 
 app = FastAPI(title="Cardiovascular Risk Prediction API")
 app.add_middleware(
@@ -522,6 +525,179 @@ def _clean_facilities(items):
     return out
 
 
+# ------------------------------------------------------------------ Gemini model selection
+RETIRED_MODEL_HINTS = ("1.0", "1.5", "gemini-pro")
+SKIP_MODEL_WORDS = ("preview", "exp", "lite", "image", "tts", "thinking", "live", "audio", "embedding")
+_working_model = None  # remembers the model that last worked, so later requests are fast
+
+
+def _is_retired(name):
+    low = name.lower()
+    return any(hint in low for hint in RETIRED_MODEL_HINTS)
+
+
+def _is_model_error(exc):
+    """True when the failure is about the model itself (missing, retired, unsupported), so another model may work."""
+    text = f"{type(exc).__name__} {exc}".lower()
+    return any(k in text for k in ("404", "not found", "notfound", "not supported", "no longer", "deprecated"))
+
+
+def _static_model_candidates():
+    names = []
+    if GEMINI_MODEL and not _is_retired(GEMINI_MODEL):
+        names.append(GEMINI_MODEL)
+    # gemini-2.5-flash first, then Google's moving "latest" alias, then 2.0 as a last known name
+    names += ["gemini-2.5-flash", "gemini-flash-latest", "gemini-2.0-flash"]
+    return list(dict.fromkeys(names))
+
+
+def _discover_models():
+    """Ask Google which flash models this key can use right now (newest names first)."""
+    found = []
+    try:
+        for m in genai.list_models():
+            if "generateContent" not in (getattr(m, "supported_generation_methods", None) or []):
+                continue
+            name = m.name.replace("models/", "")
+            low = name.lower()
+            if "flash" in low and not _is_retired(name) and not any(w in low for w in SKIP_MODEL_WORDS):
+                found.append(name)
+    except Exception as exc:
+        print(f"⚠️ Could not list Gemini models: {type(exc).__name__}: {exc}")
+    return sorted(set(found), reverse=True)
+
+
+def _call_gemini(prompt):
+    """Try the known-good model first, then the usual names, then whatever Google says is available."""
+    global _working_model
+    tried, last_exc = set(), None
+
+    def attempt(name):
+        client = genai.GenerativeModel(
+            name, generation_config={"response_mime_type": "application/json", "temperature": 0.2}
+        )
+        return client.generate_content(prompt, request_options={"timeout": 30}).text
+
+    def run(names):
+        nonlocal last_exc
+        global _working_model
+        for name in names:
+            if name in tried:
+                continue
+            tried.add(name)
+            try:
+                text = attempt(name)
+                _working_model = name
+                print(f"✅ Gemini model in use: {name}")
+                return text
+            except Exception as exc:
+                last_exc = exc
+                print(f"⚠️ Gemini model {name} failed: {type(exc).__name__}: {exc}")
+                if not _is_model_error(exc):
+                    raise  # key, quota or network problem: another model will not help
+        return None
+
+    text = run(([_working_model] if _working_model else []) + _static_model_candidates())
+    if text is None:
+        text = run(_discover_models())
+    if text is None:
+        raise last_exc or RuntimeError("No usable Gemini model was found for this API key.")
+    return text
+
+
+# ------------------------------------------------------------------ curated fallback (leading cardiac centres)
+# Used when Gemini is unavailable or returns too little. These are well-known cardiac centres chosen for general
+# reputation and case volume. It is NOT an official ranking, and no individual surgeon is named on purpose
+# (availability changes, and a "best surgeon" claim cannot be verified from here). Please re-check names and
+# addresses once a year.
+def _c(name, address):
+    return {"name": name, "address": address}
+
+
+AIIMS_DELHI = _c("AIIMS New Delhi (Cardiothoracic Sciences Centre)", "Ansari Nagar, New Delhi 110029")
+PGIMER = _c("PGIMER Chandigarh (Cardiology and Cardiothoracic Surgery)", "Sector 12, Chandigarh 160012")
+SCTIMST = _c("Sree Chitra Tirunal Institute for Medical Sciences and Technology", "Medical College Campus, Thiruvananthapuram, Kerala 695011")
+JAYADEVA = _c("Sri Jayadeva Institute of Cardiovascular Sciences and Research", "9th Block, Jayanagar, Bannerghatta Road, Bengaluru 560069")
+MEDANTA = _c("Medanta - The Medicity (Heart Institute)", "Sector 38, Gurugram, Haryana 122001")
+NARAYANA = _c("Narayana Institute of Cardiac Sciences", "258/A, Bommasandra Industrial Area, Anekal Taluk, Bengaluru 560099")
+FORTIS_ESCORTS = _c("Fortis Escorts Heart Institute", "Okhla Road, New Delhi 110025")
+ASIAN_HEART = _c("Asian Heart Institute", "G/N Block, Bandra Kurla Complex, Bandra East, Mumbai 400051")
+APOLLO_CHENNAI = _c("Apollo Hospitals (Cardiac Sciences), Greams Road", "21 Greams Lane, Off Greams Road, Chennai 600006")
+KOKILABEN = _c("Kokilaben Dhirubhai Ambani Hospital (Cardiac Sciences)", "Rao Saheb Achutrao Patwardhan Marg, Four Bungalows, Andheri West, Mumbai 400053")
+
+NATIONAL_FALLBACK = {
+    "government": [AIIMS_DELHI, PGIMER, SCTIMST, JAYADEVA],
+    "private": [MEDANTA, NARAYANA, FORTIS_ESCORTS, ASIAN_HEART, APOLLO_CHENNAI, KOKILABEN],
+}
+
+# First digit of an Indian PIN code identifies the postal region.
+REGIONAL_FALLBACK = {
+    "1": ("Delhi, Haryana, Punjab, Himachal Pradesh, J&K and Chandigarh region",
+          [AIIMS_DELHI, PGIMER], [MEDANTA, FORTIS_ESCORTS]),
+    "2": ("Uttar Pradesh and Uttarakhand region",
+          [_c("Sanjay Gandhi Postgraduate Institute of Medical Sciences (SGPGIMS)", "Raebareli Road, Lucknow, Uttar Pradesh 226014"), AIIMS_DELHI],
+          [MEDANTA, FORTIS_ESCORTS]),
+    "3": ("Rajasthan and Gujarat region",
+          [_c("U.N. Mehta Institute of Cardiology and Research Centre", "Civil Hospital Campus, Asarwa, Ahmedabad, Gujarat 380016"),
+           _c("SMS Hospital (Cardiology), Jaipur", "JLN Marg, Jaipur, Rajasthan 302004")],
+          [_c("CIMS Hospital (Cardiac Sciences), Ahmedabad", "Science City Road, Sola, Ahmedabad, Gujarat 380060"), FORTIS_ESCORTS]),
+    "4": ("Maharashtra, Goa, Madhya Pradesh and Chhattisgarh region",
+          [_c("KEM Hospital (Cardiology and CTVS), Mumbai", "Acharya Donde Marg, Parel, Mumbai 400012"),
+           _c("Sir J.J. Group of Hospitals, Mumbai", "Jai Jijabhai Marg, Byculla, Mumbai 400008")],
+          [ASIAN_HEART, KOKILABEN]),
+    "5": ("Andhra Pradesh, Telangana and Karnataka region",
+          [JAYADEVA, _c("NIMS - Nizam's Institute of Medical Sciences (Cardiology)", "Punjagutta, Hyderabad, Telangana 500082")],
+          [NARAYANA, _c("Apollo Hospitals, Jubilee Hills, Hyderabad", "Road No. 72, Film Nagar, Jubilee Hills, Hyderabad 500096")]),
+    "6": ("Kerala and Tamil Nadu region",
+          [SCTIMST, _c("Rajiv Gandhi Government General Hospital (Madras Medical College)", "Park Town, Chennai, Tamil Nadu 600003")],
+          [APOLLO_CHENNAI, _c("MIOT International (Cardiac Sciences)", "4/112, Mount Poonamallee Road, Manapakkam, Chennai 600089")]),
+    "7": ("West Bengal, Odisha and North-East region",
+          [_c("SSKM Hospital / IPGMER (Cardiology and CTVS), Kolkata", "244 AJC Bose Road, Kolkata, West Bengal 700020"),
+           _c("AIIMS Bhubaneswar (Cardiology)", "Sijua, Patrapada, Bhubaneswar, Odisha 751019")],
+          [_c("Narayana Health RTIICS (Rabindranath Tagore International Institute of Cardiac Sciences)", "1489 Mukundapur, E.M. Bypass, Kolkata 700099"),
+           _c("Apollo Gleneagles Hospital, Kolkata", "58 Canal Circular Road, Kolkata 700054")]),
+    "8": ("Bihar and Jharkhand region",
+          [_c("AIIMS Patna (Cardiology)", "Phulwari Sharif, Patna, Bihar 801507"),
+           _c("Indira Gandhi Institute of Medical Sciences (IGIMS), Patna", "Sheikhpura, Patna, Bihar 800014")],
+          [_c("Paras HMRI Hospital, Patna", "Bailey Road, Raja Bazar, Patna, Bihar 800014"), MEDANTA]),
+}
+
+
+def _top_up(primary, regional, national, n=2):
+    """Keep what we already have, then add regional picks, then national picks, without duplicates, up to n."""
+    out, seen = [], set()
+    for item in list(primary) + list(regional) + list(national):
+        key = item["name"].strip().lower()
+        if key not in seen:
+            seen.add(key)
+            out.append(item)
+        if len(out) >= n:
+            break
+    return out
+
+
+def _fallback_lists(pincode):
+    label, gov, priv = REGIONAL_FALLBACK.get(pincode[:1], ("India (national list)", [], []))
+    return label, gov, priv
+
+
+def _fallback_response(pincode, reason):
+    label, gov, priv = _fallback_lists(pincode)
+    print(f"ℹ️ Using curated cardiac-centre fallback for PIN {pincode} ({reason})")
+    return {
+        "district": f"PIN {pincode}",
+        "state": label,
+        "government_hospitals": _top_up([], gov, NATIONAL_FALLBACK["government"]),
+        "private_hospitals": _top_up([], priv, NATIONAL_FALLBACK["private"]),
+        "source": "curated-fallback",
+        "disclaimer": (
+            "Live AI search was unavailable, so these are well-known cardiac centres for your region, chosen for general "
+            "reputation (not an official ranking). Please call ahead to confirm, and ask for the Cardiology or "
+            "Cardiothoracic and Vascular Surgery (CTVS) unit."
+        ),
+    }
+
+
 @app.post("/api/find-specialists")
 async def find_specialists(req: NavigatorRequest):
     # ── validate PIN ──────────────────────────────────────────────────────────
@@ -529,17 +705,9 @@ async def find_specialists(req: NavigatorRequest):
     if not pincode.isdigit() or len(pincode) != 6:
         raise HTTPException(status_code=400, detail="Invalid 6-digit Indian PIN code.")
 
-    # ── guard: package + key both must be available ───────────────────────────
-    if genai is None:
-        raise HTTPException(
-            status_code=503,
-            detail="AI Care Navigator is unavailable (google-generativeai not installed on server).",
-        )
-    if not GEMINI_API_KEY or GEMINI_API_KEY == "paste_your_key_here":
-        raise HTTPException(
-            status_code=503,
-            detail="AI Care Navigator is not configured yet. Please contact the administrator.",
-        )
+    # ── no Gemini available at all: serve the curated list instead of an error ─
+    if genai is None or not GEMINI_API_KEY or GEMINI_API_KEY == "paste_your_key_here":
+        return _fallback_response(pincode, "Gemini not configured")
 
     prompt = f"""
 You are an expert medical care navigation AI for India.
@@ -549,38 +717,42 @@ Using official geographic knowledge of India, provide a structured JSON response
 1. "district": The resolved district name for PIN code {pincode}.
 2. "state": The resolved state name for PIN code {pincode}.
 3. "government_hospitals": An array of 2 real Government/Public hospitals or medical colleges with
-   cardiology departments nearest to PIN code {pincode}.
+   cardiology departments nearest to PIN code {pincode}, preferring those with a cardiothoracic surgery unit.
    Each object must have "name" and "address".
-4. "private_hospitals": An array of 2 real Private heart institutes or interventional cardiology
-   centers nearest to PIN code {pincode}.
+4. "private_hospitals": An array of 2 real, well-known Private heart institutes or interventional cardiology
+   and cardiac surgery centers nearest to PIN code {pincode}.
    Each object must have "name" and "address".
 
-Return ONLY valid JSON with those exact keys. No markdown backticks or extra text.
+Only include hospitals you are confident really exist. Return ONLY valid JSON with those exact keys.
+No markdown backticks or extra text.
 """
 
     try:
-        model_client = genai.GenerativeModel(
-            GEMINI_MODEL,
-            generation_config={"response_mime_type": "application/json", "temperature": 0.2},
-        )
-        response = model_client.generate_content(prompt)
-        data = _parse_json_reply(response.text)
-
+        text = await asyncio.to_thread(_call_gemini, prompt)
+        data = _parse_json_reply(text)
         if not isinstance(data, dict):
             raise ValueError("Gemini returned a non-object JSON response.")
 
+        label, gov, priv = _fallback_lists(pincode)
+        gov_list = _top_up(_clean_facilities(data.get("government_hospitals")), gov, NATIONAL_FALLBACK["government"])
+        priv_list = _top_up(_clean_facilities(data.get("private_hospitals")), priv, NATIONAL_FALLBACK["private"])
+        topped_up = (len(_clean_facilities(data.get("government_hospitals"))) < 2
+                     or len(_clean_facilities(data.get("private_hospitals"))) < 2)
+
         return {
-            "district": str(data.get("district", "Unknown District")),
-            "state": str(data.get("state", "Unknown State")),
-            "government_hospitals": _clean_facilities(data.get("government_hospitals")),
-            "private_hospitals": _clean_facilities(data.get("private_hospitals")),
+            "district": str(data.get("district", f"PIN {pincode}")),
+            "state": str(data.get("state", label)),
+            "government_hospitals": gov_list,
+            "private_hospitals": priv_list,
+            "source": "gemini+curated" if topped_up else "gemini",
             "disclaimer": "AI-generated suggestions. Verify facility details before visiting.",
         }
 
     except Exception as exc:
         error_msg = f"{type(exc).__name__}: {str(exc)}"
         print(f"❌ Gemini API error in /api/find-specialists: {error_msg}")
-        raise HTTPException(status_code=502, detail=f"Gemini API error: {error_msg}")
+        # never leave the patient with an error box: fall back to the curated list
+        return _fallback_response(pincode, error_msg[:120])
 
 
 # ------------------------------------------------------------------ /predict
