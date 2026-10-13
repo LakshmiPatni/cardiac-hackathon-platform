@@ -89,8 +89,8 @@ export default function PatientDataInput({ onAnalyzeData }) {
           setLoading(false);
           return;
         }
-
-        const response = await fetch('http://127.0.0.1:8000/predict', {
+        const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "https://cardiac-hackathon-platform.onrender.com";
+        const response = await fetch(`${API_BASE}/predict`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ features: selectedProfile.features }),
@@ -112,7 +112,7 @@ export default function PatientDataInput({ onAnalyzeData }) {
         const formData = new FormData();
         formData.append('file', pdfFile);
 
-        const extractRes = await fetch('http://127.0.0.1:8000/extract-report', {
+        const extractRes = await fetch('${API_BASE}/extract-report', {
           method: 'POST',
           body: formData,
         });
@@ -125,7 +125,7 @@ export default function PatientDataInput({ onAnalyzeData }) {
         const extractData = await extractRes.json();
         const extractedFeatures = extractData.features;
 
-        const predictRes = await fetch('http://127.0.0.1:8000/predict', {
+        const predictRes = await fetch('${API_BASE}/predict', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ features: extractedFeatures }),
