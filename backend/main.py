@@ -41,7 +41,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 # ── Gemini configuration (key stored in .env — users never see it) ──────────
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "").strip()
-GEMINI_MODEL   = os.environ.get("GEMINI_MODEL", "gemini-3.8-flash").strip()
+GEMINI_MODEL   = os.environ.get("GEMINI_MODEL", "gemini-1.5-flash").strip()
 
 if genai is None:
     print("⚠️  google-generativeai not installed — care navigator disabled")

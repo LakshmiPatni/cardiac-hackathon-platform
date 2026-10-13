@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 export const SAMPLE_PATIENTS = [
   {
     id: "patient_1",
-    label: "Case #101: 66-year-old Female — Low Risk / Normal",
-    description: "True normal patient from dataset (Index #3). Clean coronary arteries, no significant vessel stenosis.",
+    label: "Case #1: 66-year-old Female — Low Risk / Normal",
+    description: "Clean coronary arteries, no significant vessel stenosis.",
     features: {
       "Age": 66, "Weight": 67, "Length": 158, "Sex": "Fmale", "BMI": 26.84,
       "DM": 0, "HTN": 1, "Current Smoker": 0, "EX-Smoker": 0, "FH": 0,
@@ -22,8 +22,8 @@ export const SAMPLE_PATIENTS = [
   },
   {
     id: "patient_2",
-    label: "Case #102: 50-year-old Male — High Risk / Critical",
-    description: "Moderate borderline patient from dataset (Index #27). Single vessel stenosis with moderate risk profile.",
+    label: "Case #2: 50-year-old Male — High Risk / Critical",
+    description: "Single vessel stenosis with moderate risk profile.",
     features: {
       "Age": 50, "Weight": 81, "Length": 165, "Sex": "Male", "BMI": 29.75,
       "DM": 0, "HTN": 1, "Current Smoker": 0, "EX-Smoker": 0, "FH": 0,
@@ -41,8 +41,8 @@ export const SAMPLE_PATIENTS = [
   },
   {
     id: "patient_3",
-    label: "Case #103: 53-year-old Male —Moderate Risk / Borderline",
-    description: "Critical multi-vessel CAD patient from dataset (Index #0). Severe blockage across primary coronary branches.",
+    label: "Case #3: 53-year-old Male —Moderate Risk / Borderline",
+    description: "Severe blockage across primary coronary branches.",
     features: {
       "Age": 53, "Weight": 90, "Length": 175, "Sex": "Male", "BMI": 29.39,
       "DM": 0, "HTN": 1, "Current Smoker": 1, "EX-Smoker": 0, "FH": 0,

@@ -75,7 +75,14 @@ export default function CardiologistFinder({ analysisResult }) {
           disabled={loading || pincode.length !== 6}
           className="px-6 py-3 bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-bold text-sm rounded-xl transition duration-200 shadow-lg shadow-emerald-500/20"
         >
-          {loading ? 'Querying AI Agent...' : 'Find Specialists Nearby'}
+        {loading ? (
+            <div className="flex items-center space-x-2 text-emerald-400">
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-emerald-400"></div>
+                <span>Searching nearby specialists & analyzing risk profile...</span>
+            </div>
+        ) : (
+            "Find Specialists Nearby"
+        )}
         </button>
       </form>
 
