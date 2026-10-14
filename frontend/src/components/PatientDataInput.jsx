@@ -22,7 +22,7 @@ export const SAMPLE_PATIENTS = [
   },
   {
     id: "patient_2",
-    label: "Case #2: 50-year-old Male — High Risk / Critical",
+    label: "Case #2: 50-year-old Male — Moderate Risk / Borderline",
     description: "Single vessel stenosis with moderate risk profile.",
     features: {
       "Age": 50, "Weight": 81, "Length": 165, "Sex": "Male", "BMI": 29.75,
@@ -41,7 +41,7 @@ export const SAMPLE_PATIENTS = [
   },
   {
     id: "patient_3",
-    label: "Case #3: 53-year-old Male —Moderate Risk / Borderline",
+    label: "Case #3: 53-year-old Male — High Risk / Critical",
     description: "Severe blockage across primary coronary branches.",
     features: {
       "Age": 53, "Weight": 90, "Length": 175, "Sex": "Male", "BMI": 29.39,
@@ -76,7 +76,9 @@ export default function PatientDataInput({ onAnalyzeData }) {
       setError('Please upload a valid PDF file.');
     }
   };
+
   const API_BASE = "https://cardiac-hackathon-platform.onrender.com";
+
   const handleCalculateRisk = async () => {
     setLoading(true);
     setError(null);
@@ -89,7 +91,7 @@ export default function PatientDataInput({ onAnalyzeData }) {
           setLoading(false);
           return;
         }
-        const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "https://cardiac-hackathon-platform.onrender.com";
+
         const response = await fetch(`${API_BASE}/predict`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -112,7 +114,7 @@ export default function PatientDataInput({ onAnalyzeData }) {
         const formData = new FormData();
         formData.append('file', pdfFile);
 
-        const extractRes = await fetch('${API_BASE}/extract-report', {
+        const extractRes = await fetch(`${API_BASE}/extract-report`, {
           method: 'POST',
           body: formData,
         });
@@ -125,7 +127,7 @@ export default function PatientDataInput({ onAnalyzeData }) {
         const extractData = await extractRes.json();
         const extractedFeatures = extractData.features;
 
-        const predictRes = await fetch('${API_BASE}/predict', {
+        const predictRes = await fetch(`${API_BASE}/predict`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ features: extractedFeatures }),
@@ -140,7 +142,7 @@ export default function PatientDataInput({ onAnalyzeData }) {
       }
     } catch (err) {
       console.error('Calculation Error:', err);
-      setError(err.message || 'Backend connection failed. Ensure FastAPI is running on port 8000.');
+      setError(err.message || 'Backend connection failed.');
     } finally {
       setLoading(false);
     }
