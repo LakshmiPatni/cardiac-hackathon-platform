@@ -76,7 +76,7 @@ export default function PatientDataInput({ onAnalyzeData }) {
       setError('Please upload a valid PDF file.');
     }
   };
-  const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "https://cardiac-hackathon-platform.onrender.com";
+  const API_BASE = "https://cardiac-hackathon-platform.onrender.com";
   const handleCalculateRisk = async () => {
     setLoading(true);
     setError(null);

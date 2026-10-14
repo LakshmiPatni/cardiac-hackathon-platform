@@ -7,7 +7,7 @@ export default function CardiologistFinder({ analysisResult }) {
   const [error, setError] = useState(null);
 
   const riskLevel = analysisResult?.overallCadProb > 0.5 ? 'High' : 'Moderate';
-  const API_BASE = import.meta.env.VITE_API_URL || import.meta.env.VITE_BACKEND_URL || "https://cardiac-hackathon-platform.onrender.com";
+  const API_BASE = "https://cardiac-hackathon-platform.onrender.com";
   const handleAiSearch = async (e) => {
     e.preventDefault();
     if (pincode.length !== 6) return;
