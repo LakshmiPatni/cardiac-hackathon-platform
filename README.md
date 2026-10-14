@@ -24,17 +24,27 @@ It evaluates global systemic and anatomical vessel-specific risks (LAD, LCX, RCA
 
 ---
 
-## 🛠️ Technology Stack
+## 🛠️ Tech Stack, Platforms & AI Architecture
 
-| Component | Technology / Library | Description |
-| :--- | :--- | :--- |
-| **Frontend** | React, Tailwind CSS, Vite | Responsive clinician/patient UI hosted on Vercel[cite: 9, 10]. |
-| **3D Engine** | Three.js, React Three Fiber, OrbitControls | Interactive anatomical OBJ model rendering[cite: 9, 11]. |
-| **Backend API** | FastAPI, Uvicorn (Python) | High-performance asynchronous REST API hosted on Render[cite: 9, 10]. |
-| **Machine Learning** | Scikit-learn, LightGBM, Joblib | Stacking meta-learner pipelines and predictive models[cite: 9]. |
-| **Explainability** | SHAP | Tree-explainer integration for clinical feature attribution[cite: 9]. |
-| **Document Parsing** | pypdf, Regex Engine | Automated extraction from unstructured PDF lab reports[cite: 9, 10]. |
-| **Generative AI** | google-generativeai (`gemini-flash-latest`) | Live medical care navigation and hospital infrastructure lookup[cite: 9, 10]. |
+### **Languages Used**
+* **Python**: Backend development (FastAPI), data preprocessing, regex parsing (`pypdf`), and building machine learning pipelines.
+* **JavaScript (ES6+) / JSX**: Frontend UI components (React), state management, and rendering 3D graphics in the browser.
+* **HTML5 & CSS3 / Tailwind CSS**: Structure, styling, layouts, and responsive UI dashboard elements.
+
+### **Web & Hosting Platforms**
+* **Render**: Live FastAPI Python backend server hosting.
+* **Vercel**: Live React frontend application hosting.
+* **GitHub**: Repository source control, code management, and automated continuous deployment triggers.
+* **cron-job.org**: Automated Keep-Alive ping monitoring to eliminate backend cold-start delays on free-tier hosting.
+
+### **AIs, Models & Intelligent Tools Used**
+* **Gemini AI**:
+  * **System Design & Workflow Architecture**: Assisted in structuring end-to-end full-stack workflows, CIMS system architecture, keep-alive deployment strategies, and demo video script blueprints.
+  * **`gemini-flash-2.5` API**: Powers intelligent geolocation mapping, structured JSON response schemas, and real-time retrieval of nearby verified cardiology centers based on Indian PIN codes.
+* **Claude**: Assisted in architecting and generating the 3D interactive heart viewer components using WebGL, Three.js, and `@react-three/fiber`.
+* **Google Antigravity IDE & AI Agents**: Utilized as an agentic development environment for real-time debugging, automated error resolution, and full-stack project troubleshooting.
+* **LightGBM Binary & Multi-Class Classifiers**: Gradient-boosting machine learning models trained for predicting coronary artery disease (CAD) risk and specific vessel stenosis probability (LAD, LCX, RCA).
+* **SHAP (SHapley Additive exPlanations)**: Explainable AI framework (`TreeExplainer`) used to calculate feature importance scores and explain individual clinical risk factor contributions.
 
 ---
 
@@ -55,3 +65,4 @@ cardiac-hackathon-platform/
     │   └── main.jsx             # Entry point
     ├── package.json             # Node dependencies & scripts
     └── vite.config.js           # Vite build configuration
+
