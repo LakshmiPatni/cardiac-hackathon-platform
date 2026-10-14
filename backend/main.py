@@ -468,6 +468,8 @@ class NavigatorRequest(BaseModel):
 
 
 @app.get("/")
+def read_root():
+    return {"status": "online", "message": "Cardiology AI Backend is running"}
 def home():
     return {
         "status": "online",
